@@ -41,10 +41,10 @@ public class BPlusTree<K extends Comparable<K>, T> {
 				return search_helper((Node<K,T>)tmp2.children.get(tmp2.children.size()-1),key);
 			}
 			else{
-				int i = 0;
+				int i = 1;
 				while (i<tmp2.keys.size()){
-					if (key.compareTo(tmp2.keys.get(i))>=0 && key.compareTo(tmp2.keys.get(i+1))<0){
-						return search_helper((Node<K,T>)tmp2.children.get(i+1),key);
+					if (key.compareTo(tmp2.keys.get(i-1))>=0 && key.compareTo(tmp2.keys.get(i))<0){
+						return search_helper((Node<K,T>)tmp2.children.get(i),key);
 					}
 				}
 			}
@@ -109,10 +109,10 @@ public class BPlusTree<K extends Comparable<K>, T> {
 				return searchForInsert((Node<K,T>)tmp.children.get(tmp.children.size()-1),key,trace);
 			}
 			else{
-				for (int i=0;i<tmp.keys.size();i++){
-					if (key.compareTo(tmp.keys.get(i))>=0 && key.compareTo(tmp.keys.get(i+1))<0){
+				for (int i=1;i<tmp.keys.size();i++){
+					if (key.compareTo(tmp.keys.get(i-1))>=0 && key.compareTo(tmp.keys.get(i))<0){
 						// key.compareTo(tmp.keys.get(i))>0 ? because no duplicate
-						return searchForInsert((Node<K,T>)tmp.children.get(i+1),key,trace);
+						return searchForInsert((Node<K,T>)tmp.children.get(i),key,trace);
 					}
 				}
 			}
@@ -126,10 +126,10 @@ public class BPlusTree<K extends Comparable<K>, T> {
 			preNode.insertSorted(righthalf, preNode.keys.size());
 		}
 		else{
-			for (int i=0;i<preNode.keys.size();i++){
-				if (righthalf.getKey().compareTo(preNode.keys.get(i))>0 && 
-						righthalf.getKey().compareTo(preNode.keys.get(i+1))<0){
-					preNode.insertSorted(righthalf, i+1);
+			for (int i=1;i<preNode.keys.size();i++){
+				if (righthalf.getKey().compareTo(preNode.keys.get(i-1))>0 && 
+						righthalf.getKey().compareTo(preNode.keys.get(i))<0){
+					preNode.insertSorted(righthalf, i);
 				}
 			}
 		}
@@ -190,8 +190,69 @@ public class BPlusTree<K extends Comparable<K>, T> {
 	 * @param key
 	 */
 	public void delete(K key) {
+		if (root==null) return;
+		int index = -1;
+		Stack<IndexNode<K,T>> trace = new Stack<>();
+		LeafNode<K,T> tmp = searchForInsert(root,key,trace);    //trace where the node to be deleted is belonged to
+		if (root.isLeafNode){
+			for (int i=0;i<tmp.keys.size();i++){
+				if (key == tmp.keys.get(i)){
+					tmp.keys.remove(i);
+					tmp.values.remove(i);
+					break;
+				}
+			}
+			return;
+		}
+		for (int i=0;i<tmp.keys.size();i++){
+			if (key==tmp.keys.get(i)){
+				tmp.keys.remove(i);
+				tmp.values.remove(i);
+				break;
+			}
+		}
+		if (((Node<K,T>)tmp).isUnderflowed()){
+			IndexNode<K,T> parent = trace.pop();
+			int res = handleLeafNodeUnderflow(tmp.previousLeaf,tmp,parent)==-1?
+					handleLeafNodeUnderflow(tmp,tmp.nextLeaf,parent):
+						handleLeafNodeUnderflow(tmp.previousLeaf,tmp,parent);	  
+
+					while (parent.isUnderflowed() && !trace.isEmpty()){
+						IndexNode<K,T> parent2 = trace.pop();
+						if (parent.keys.get(parent.keys.size()-1).compareTo(parent2.keys.get(0))<0){
+							index = 0;
+						}
+						else if (parent.keys.get(0).compareTo(parent2.keys.get(parent2.keys.size()-1))>=0){
+							index = parent.keys.size();
+						}
+						else{
+							for (int i=1;i<parent2.keys.size();i++){
+								if (parent2.keys.get(i-1).compareTo(parent.keys.get(0))<=0
+										&&parent2.keys.get(i).compareTo(parent.keys.get(0))>0){
+									index = i;
+									break;
+								}
+							}
+						}
+						if (index==0){
+							IndexNode<K,T> myright = (IndexNode<K, T>) parent2.children.get(1);
+							res = handleIndexNodeUnderflow(parent,myright,parent2);
+						}
+						else{
+							IndexNode<K,T> myleft = (IndexNode<K, T>) parent2.children.get(index-1);
+							res = handleIndexNodeUnderflow(myleft,parent,parent2);
+						}
+						parent = parent2;
+					}
+		}
+
+
+
+
 
 	}
+
+
 
 	/**
 	 * TODO Handle LeafNode Underflow (merge or redistribution)
@@ -207,7 +268,42 @@ public class BPlusTree<K extends Comparable<K>, T> {
 	 */
 	public int handleLeafNodeUnderflow(LeafNode<K,T> left, LeafNode<K,T> right,
 			IndexNode<K,T> parent) {
+		if(left==null || right==null) return -1;
+		int res = -1;
+		for (int i=0;i<parent.keys.size();i++){
+			if (left.keys.get(left.keys.size()-1).compareTo(parent.keys.get(i))<0 &&
+					parent.keys.get(i).compareTo(right.keys.get(0))<=0){
+				res = i;
+			}
+		}
+		if (res==-1) return -1;
+
+		if (left.keys.size() + right.keys.size()< 2*D){
+			left.keys.addAll(right.keys);
+			left.values.addAll(right.values);
+			parent.keys.remove(res);
+			parent.children.remove(res+1);	
+			return res;
+		}
+		else if (right.keys.size()>D){
+			left.keys.add(right.keys.get(0));
+			left.values.add(right.values.get(0));
+			right.keys.remove(0);
+			right.values.remove(0);
+			parent.keys.remove(res);
+			parent.keys.add(res,right.keys.get(0));
+			return res;
+		}else if (left.keys.size()>D){
+			right.keys.add(0,left.keys.get(left.keys.size()-1));
+			left.keys.remove(left.keys.size()-1);
+			right.values.add(0,left.values.get(left.values.size()-1));
+			left.values.remove(left.values.size()-1);
+			parent.keys.remove(res);
+			parent.keys.add(res,right.keys.get(0));
+			return res;
+		}
 		return -1;
+
 
 	}
 
@@ -225,7 +321,42 @@ public class BPlusTree<K extends Comparable<K>, T> {
 	 */
 	public int handleIndexNodeUnderflow(IndexNode<K,T> leftIndex,
 			IndexNode<K,T> rightIndex, IndexNode<K,T> parent) {
-		return -1;
+		if (leftIndex==null || rightIndex==null) return -1;
+		int res = -1;
+		for (int i=0;i<parent.keys.size();i++){
+			if (leftIndex.keys.get(leftIndex.keys.size()-1).compareTo(parent.keys.get(i))<0
+					&& rightIndex.keys.get(0).compareTo(parent.keys.get(i))>=0){
+				res = i;
+			}
+		}
+		if (res==-1) return res;
+		if (leftIndex.keys.size() + rightIndex.keys.size()<2*D){
+           leftIndex.keys.add(parent.keys.get(res));
+           leftIndex.keys.addAll(rightIndex.keys);
+           leftIndex.children.addAll(rightIndex.children);
+           parent.keys.remove(res);
+           parent.children.remove(res+1);
+           return res;
+		}
+		else if (rightIndex.keys.size()>D){
+			leftIndex.keys.add(parent.keys.get(res));
+			leftIndex.children.add(rightIndex.children.get(0));
+			parent.keys.remove(res);
+			parent.keys.add(res,rightIndex.keys.get(0));
+			rightIndex.keys.remove(0);
+			rightIndex.children.remove(0);
+			return res;
+		}
+		else if (leftIndex.keys.size()>D){
+			rightIndex.keys.add(0,parent.keys.get(res));
+			rightIndex.children.add(0,leftIndex.children.get(leftIndex.children.size()-1));
+			parent.keys.remove(res);
+			parent.keys.add(res,leftIndex.keys.get(leftIndex.keys.size()-1));
+			leftIndex.keys.remove(leftIndex.keys.size()-1);
+			leftIndex.children.remove(leftIndex.children.size()-1);
+			return res;
+		}
+	   return -1;
 	}
 
 }
