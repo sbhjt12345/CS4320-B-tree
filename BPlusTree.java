@@ -71,22 +71,6 @@ public class BPlusTree<K extends Comparable<K>, T> {
 		Stack<IndexNode<K,T>> trace = new Stack<>();
 		LeafNode<K,T> traceLeaf = searchForInsert(root,key,trace);
 		traceLeaf.insertSorted(key,value);
-		/*
-		if (root.isLeafNode){
-			if (((Node<K,T>)traceLeaf).isOverflowed()){
-				Entry<K, Node<K,T>> righthalf = splitLeafNode(traceLeaf);
-				ArrayList<K> keysss = new ArrayList<>();
-				keysss.add(righthalf.getKey());
-				ArrayList<Node<K,T>> mychildren = new ArrayList<>();
-				mychildren.add(traceLeaf);
-				mychildren.add(righthalf.getValue());
-				IndexNode<K,T> index = new IndexNode<>(keysss,mychildren);
-				root = index;
-				return;
-
-			}
-		}
-		 */
 
 		// the stack is used to trace the IndexNode where the inserted entry should be located at.
 		if (((Node<K,T>)traceLeaf).isOverflowed()){
@@ -147,7 +131,7 @@ public class BPlusTree<K extends Comparable<K>, T> {
 			if (key.compareTo(tmp.keys.get(0))<0){
 				return searchForInsert((Node<K,T>)tmp.children.get(0),key,trace);
 			}
-			else if (key.compareTo(tmp.keys.get(root.keys.size()-1))>0){
+			else if (key.compareTo(tmp.keys.get(root.keys.size()-1))>=0){
 				return searchForInsert((Node<K,T>)tmp.children.get(tmp.children.size()-1),key,trace);
 			}
 			else{
@@ -238,21 +222,8 @@ public class BPlusTree<K extends Comparable<K>, T> {
 	public void delete(K key) {
 		if (root==null) return;
 		int index = -1;
-		int ress = -1;
 		Stack<IndexNode<K,T>> trace = new Stack<>();
 		LeafNode<K,T> tmp = searchForInsert(root,key,trace);    //trace where the node to be deleted is belonged to
-		/*
-		if (root.isLeafNode){
-			for (int i=0;i<tmp.keys.size();i++){
-				if (key == tmp.keys.get(i)){
-					tmp.keys.remove(i);
-					tmp.values.remove(i);
-					break;
-				}
-			}
-			return;
-		}
-		 */
 
 		for (int i=0;i<tmp.keys.size();i++){
 			if (key==tmp.keys.get(i)){
@@ -264,7 +235,7 @@ public class BPlusTree<K extends Comparable<K>, T> {
 		if (((Node<K,T>)tmp).isUnderflowed()){
 			IndexNode<K,T> parent = trace.isEmpty()?null:trace.pop();
 			if (parent==null) return;
-			IndexNode<K,T> grandparent = trace.isEmpty()?null:trace.pop();
+			IndexNode<K,T> grandparent = trace.isEmpty()?null:trace.peek();
 			if (grandparent==null){
 				if (tmp.keys.get(tmp.keys.size()-1).compareTo(parent.keys.get(0))<0){
 					tmp.previousLeaf = null;
@@ -272,6 +243,7 @@ public class BPlusTree<K extends Comparable<K>, T> {
 				}
 				else if (tmp.keys.get(0).compareTo(parent.keys.get(parent.keys.size()-1))>=0){
 					tmp.previousLeaf = (LeafNode<K, T>) parent.children.get(parent.children.size()-2);
+					tmp.nextLeaf = null;
 				}
 				else{
 					for (int i=1;i<parent.keys.size();i++){
@@ -285,16 +257,49 @@ public class BPlusTree<K extends Comparable<K>, T> {
 			}
 			else{
 				// this part handle more complicated situations
-				
-				
-				
-				
-				
+				if (tmp.keys.get(tmp.keys.size()-1).compareTo(root.keys.get(0))<0){
+					tmp.previousLeaf = null;
+					tmp.nextLeaf = (LeafNode<K, T>) parent.children.get(1);
+				}
+				else if (tmp.keys.get(0).compareTo(root.keys.get(root.keys.size()-1))>=0){
+					tmp.nextLeaf = null;
+					tmp.previousLeaf =  (LeafNode<K, T>) parent.children.get(parent.children.size()-2);
+				}
+				else{
+					if (tmp.keys.get(tmp.keys.size()-1).compareTo(parent.keys.get(0))<0){
+						tmp.nextLeaf = (LeafNode<K, T>) parent.children.get(1);
+						for (int i=0;i<grandparent.keys.size()-1;i++){
+							if (grandparent.keys.get(i).compareTo(parent.keys.get(0))<=0 &&
+								grandparent.keys.get(i+1).compareTo(parent.keys.get(parent.keys.size()-1))>0){
+								IndexNode<K,T> preIndex = (IndexNode<K,T>)grandparent.children.get(i);
+								tmp.previousLeaf = (LeafNode<K, T>) preIndex.children.get(preIndex.keys.size());
+							}
+						}
+					}
+					else if (tmp.keys.get(0).compareTo(parent.keys.get(parent.keys.size()-1))>=0){
+						tmp.previousLeaf =  (LeafNode<K, T>) parent.children.get(parent.children.size()-2);
+						for (int i=0;i<grandparent.keys.size()-1;i++){
+							if (grandparent.keys.get(i).compareTo(parent.keys.get(0))<=0 &&
+								grandparent.keys.get(i+1).compareTo(parent.keys.get(parent.keys.size()-1))>0){
+								IndexNode<K,T> nextIndex = (IndexNode<K,T>)grandparent.children.get(i+1);
+								tmp.previousLeaf = (LeafNode<K, T>) nextIndex.children.get(0);
+							}
+						}
+					}
+					else{
+						for (int i=0;i<parent.keys.size()-1;i++){
+							if(parent.keys.get(i).compareTo(tmp.keys.get(0))<=0 &&
+							   parent.keys.get(i+1).compareTo(tmp.keys.get(tmp.keys.size()-1))>0){
+								tmp.previousLeaf = (LeafNode<K, T>) parent.children.get(i);
+								tmp.nextLeaf=(LeafNode<K, T>) parent.children.get(i+2);
+							}
+						}
+					}
+				}		
 			}
 
-			int res = handleLeafNodeUnderflow(tmp.previousLeaf,tmp,parent)==-1?
-					handleLeafNodeUnderflow(tmp,tmp.nextLeaf,parent):
-						handleLeafNodeUnderflow(tmp.previousLeaf,tmp,parent);	
+			int res = handleLeafNodeUnderflow(tmp.previousLeaf,tmp,parent);
+            if (res==-1) res = handleLeafNodeUnderflow(tmp,tmp.nextLeaf,parent);
 			if (res>=0){
 				parent.keys.remove(res);
 				parent.children.remove(res+1);
@@ -302,8 +307,9 @@ public class BPlusTree<K extends Comparable<K>, T> {
 
                 
 			
-			while (parent.isUnderflowed() && !trace.isEmpty()){
-				IndexNode<K,T> parent2 = trace.pop();
+			while (parent != null && parent.isUnderflowed()){
+				IndexNode<K,T> parent2 = trace.isEmpty()?null:trace.pop();
+		        if (parent2==null) return;
 				if (parent.keys.get(parent.keys.size()-1).compareTo(parent2.keys.get(0))<0){
 					index = 0;
 				}
@@ -424,6 +430,7 @@ public class BPlusTree<K extends Comparable<K>, T> {
 			leftIndex.children.addAll(rightIndex.children);
 			parent.keys.remove(res);
 			parent.children.remove(res+1);
+			if (parent.keys.size()==0) root = leftIndex;
 			return res;
 		}
 		else if (rightIndex.keys.size()>D){
