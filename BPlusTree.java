@@ -46,6 +46,7 @@ public class BPlusTree<K extends Comparable<K>, T> {
 					if (key.compareTo(tmp2.keys.get(i-1))>=0 && key.compareTo(tmp2.keys.get(i))<0){
 						return search_helper((Node<K,T>)tmp2.children.get(i),key);
 					}
+					i++;
 				}
 			}
 		}
@@ -59,14 +60,18 @@ public class BPlusTree<K extends Comparable<K>, T> {
 	 * @param value
 	 */
 	public void insert(K key, T value) {
+		//Situation 1: when root==null
+		//the inserting node will be the root
 		if (root==null){
 			LeafNode<K,T> leaf = new LeafNode<>(key,value);
 			root = leaf;
 			return;
 		}
+
 		Stack<IndexNode<K,T>> trace = new Stack<>();
 		LeafNode<K,T> traceLeaf = searchForInsert(root,key,trace);
 		traceLeaf.insertSorted(key,value);
+		/*
 		if (root.isLeafNode){
 			if (((Node<K,T>)traceLeaf).isOverflowed()){
 				Entry<K, Node<K,T>> righthalf = splitLeafNode(traceLeaf);
@@ -81,23 +86,60 @@ public class BPlusTree<K extends Comparable<K>, T> {
 
 			}
 		}
+		 */
 
 		// the stack is used to trace the IndexNode where the inserted entry should be located at.
 		if (((Node<K,T>)traceLeaf).isOverflowed()){
 			Entry<K, Node<K,T>> righthalf = splitLeafNode(traceLeaf);
-			IndexNode<K,T> preNode = trace.pop();
+			IndexNode<K,T> preNode = trace.isEmpty()?null:trace.pop();
 			// next decide where to insert the newly splitted entry
-			insertHelper(righthalf,preNode);
-
-			while (((Node<K,T>)preNode).isOverflowed() && !trace.isEmpty()){
+			if (preNode != null) insertHelper(traceLeaf,righthalf,preNode);
+			else{
+				ArrayList<K> keysss = new ArrayList<>();
+				keysss.add(righthalf.getKey());
+				ArrayList<Node<K,T>> mychildren = new ArrayList<>();
+				mychildren.add(traceLeaf);
+				mychildren.add(righthalf.getValue());
+				IndexNode<K,T> index = new IndexNode<>(keysss,mychildren);
+				root = index;
+				return;
+			}
+			/*	
+			if (((Node<K,T>)preNode).isOverflowed() && trace.isEmpty()){
 				Entry<K,Node<K,T>> righthalf2 = splitIndexNode(preNode);
+			//	preNode = trace.pop();
+				insertHelper(traceLeaf,righthalf2,preNode);
+			}
+			else{
+			 */
+			while (((Node<K,T>)preNode) !=null && ((Node<K,T>)preNode).isOverflowed()){
+				Entry<K,Node<K,T>> righthalf2 = splitIndexNode(preNode);
+				if (trace.isEmpty()){
+					ArrayList<K> keysss = new ArrayList<>();
+					keysss.add(righthalf2.getKey());
+					ArrayList<Node<K,T>> mychildren = new ArrayList<>();
+					mychildren.add(preNode);
+					mychildren.add(righthalf2.getValue());
+					IndexNode<K,T> index = new IndexNode<>(keysss,mychildren);
+					root = index;
+					return;
+				}
+				IndexNode<K,T> copy = preNode;
 				preNode = trace.pop();
-				insertHelper(righthalf2,preNode);
+				//insertHelper(copy,righthalf2,preNode);
+				if (preNode !=null){
+					insertHelper(copy,righthalf2,preNode);
+				}
 			}
 		}
+		//	}
 	}
 
+
+
+	// this helper function is used to find out the leafNode where the inserting entry will be in
 	private LeafNode<K,T> searchForInsert(Node<K,T> root,K key,Stack<IndexNode<K,T>> trace){
+
 		if (root.isLeafNode) return (LeafNode<K,T>) root;
 		else{
 			IndexNode<K,T> tmp = (IndexNode<K,T>) root;
@@ -120,16 +162,18 @@ public class BPlusTree<K extends Comparable<K>, T> {
 		return null;
 	}
 
-	private void insertHelper(Entry<K,Node<K,T>> righthalf,IndexNode<K,T> preNode){
-		if (righthalf.getKey().compareTo(preNode.keys.get(0))<0) preNode.insertSorted(righthalf, 0);
-		else if (righthalf.getKey().compareTo(preNode.keys.get(preNode.keys.size()-1))>0){
-			preNode.insertSorted(righthalf, preNode.keys.size());
+	private void insertHelper(Node<K,T> preNode,Entry<K,Node<K,T>> righthalf,IndexNode<K,T> grandpreNode){
+		if (righthalf.getKey().compareTo(grandpreNode.keys.get(0))<0) {
+			grandpreNode.insertSorted(righthalf, 0);
+		}
+		else if (righthalf.getKey().compareTo(grandpreNode.keys.get(grandpreNode.keys.size()-1))>0){
+			grandpreNode.insertSorted(righthalf, grandpreNode.keys.size());
 		}
 		else{
-			for (int i=1;i<preNode.keys.size();i++){
-				if (righthalf.getKey().compareTo(preNode.keys.get(i-1))>0 && 
-						righthalf.getKey().compareTo(preNode.keys.get(i))<0){
-					preNode.insertSorted(righthalf, i);
+			for (int i=1;i<grandpreNode.keys.size();i++){
+				if (righthalf.getKey().compareTo(grandpreNode.keys.get(i-1))>0 && 
+						righthalf.getKey().compareTo(grandpreNode.keys.get(i))<0){
+					grandpreNode.insertSorted(righthalf, i);
 				}
 			}
 		}
@@ -170,16 +214,18 @@ public class BPlusTree<K extends Comparable<K>, T> {
 		ArrayList<Node<K,T>> childrens = new ArrayList<>();
 		for (int i=D;i<=2*D;i++){
 			keyss.add(index.keys.get(i));
-			childrens.add(index.children.get(i));
+			childrens.add(index.children.get(i+1));
 		}
-		childrens.add(index.children.get(2*D+1));
+		//		childrens.add(index.children.get(2*D+1));
 		for (int i=D;i<=2*D;i++){
 			index.keys.remove(index.keys.size()-1);
 			index.children.remove(index.children.size()-1);
 		}
-		index.children.remove(D);
+		//	index.children.remove(D);
+		K headKey = keyss.get(0);
+		keyss.remove(0);
 		IndexNode<K,T> newright = new IndexNode<>(keyss,childrens);
-		Entry<K,Node<K,T>> result = new AbstractMap.SimpleEntry<K,Node<K,T>>(keyss.get(0),(Node<K,T>) newright);
+		Entry<K,Node<K,T>> result = new AbstractMap.SimpleEntry<K,Node<K,T>>(headKey,(Node<K,T>) newright);
 		return result;
 
 	}
@@ -192,8 +238,10 @@ public class BPlusTree<K extends Comparable<K>, T> {
 	public void delete(K key) {
 		if (root==null) return;
 		int index = -1;
+		int ress = -1;
 		Stack<IndexNode<K,T>> trace = new Stack<>();
 		LeafNode<K,T> tmp = searchForInsert(root,key,trace);    //trace where the node to be deleted is belonged to
+		/*
 		if (root.isLeafNode){
 			for (int i=0;i<tmp.keys.size();i++){
 				if (key == tmp.keys.get(i)){
@@ -204,6 +252,8 @@ public class BPlusTree<K extends Comparable<K>, T> {
 			}
 			return;
 		}
+		 */
+
 		for (int i=0;i<tmp.keys.size();i++){
 			if (key==tmp.keys.get(i)){
 				tmp.keys.remove(i);
@@ -212,38 +262,73 @@ public class BPlusTree<K extends Comparable<K>, T> {
 			}
 		}
 		if (((Node<K,T>)tmp).isUnderflowed()){
-			IndexNode<K,T> parent = trace.pop();
+			IndexNode<K,T> parent = trace.isEmpty()?null:trace.pop();
+			if (parent==null) return;
+			IndexNode<K,T> grandparent = trace.isEmpty()?null:trace.pop();
+			if (grandparent==null){
+				if (tmp.keys.get(tmp.keys.size()-1).compareTo(parent.keys.get(0))<0){
+					tmp.previousLeaf = null;
+					tmp.nextLeaf = (LeafNode<K, T>) parent.children.get(1);
+				}
+				else if (tmp.keys.get(0).compareTo(parent.keys.get(parent.keys.size()-1))>=0){
+					tmp.previousLeaf = (LeafNode<K, T>) parent.children.get(parent.children.size()-2);
+				}
+				else{
+					for (int i=1;i<parent.keys.size();i++){
+						if (parent.keys.get(i-1).compareTo(tmp.keys.get(0))<=0 &&
+							parent.keys.get(i).compareTo(tmp.keys.get(tmp.keys.size()-1))>0){
+							tmp.previousLeaf = (LeafNode<K, T>) parent.children.get(i-1);
+							tmp.nextLeaf = (LeafNode<K, T>) parent.children.get(i);
+						}
+					}
+				}
+			}
+			else{
+				// this part handle more complicated situations
+				
+				
+				
+				
+				
+			}
+
 			int res = handleLeafNodeUnderflow(tmp.previousLeaf,tmp,parent)==-1?
 					handleLeafNodeUnderflow(tmp,tmp.nextLeaf,parent):
-						handleLeafNodeUnderflow(tmp.previousLeaf,tmp,parent);	  
+						handleLeafNodeUnderflow(tmp.previousLeaf,tmp,parent);	
+			if (res>=0){
+				parent.keys.remove(res);
+				parent.children.remove(res+1);
+			}
 
-					while (parent.isUnderflowed() && !trace.isEmpty()){
-						IndexNode<K,T> parent2 = trace.pop();
-						if (parent.keys.get(parent.keys.size()-1).compareTo(parent2.keys.get(0))<0){
-							index = 0;
+                
+			
+			while (parent.isUnderflowed() && !trace.isEmpty()){
+				IndexNode<K,T> parent2 = trace.pop();
+				if (parent.keys.get(parent.keys.size()-1).compareTo(parent2.keys.get(0))<0){
+					index = 0;
+				}
+				else if (parent.keys.get(0).compareTo(parent2.keys.get(parent2.keys.size()-1))>=0){
+					index = parent.keys.size();
+				}
+				else{
+					for (int i=1;i<parent2.keys.size();i++){
+						if (parent2.keys.get(i-1).compareTo(parent.keys.get(0))<=0
+								&&parent2.keys.get(i).compareTo(parent.keys.get(0))>0){
+							index = i;
+							break;
 						}
-						else if (parent.keys.get(0).compareTo(parent2.keys.get(parent2.keys.size()-1))>=0){
-							index = parent.keys.size();
-						}
-						else{
-							for (int i=1;i<parent2.keys.size();i++){
-								if (parent2.keys.get(i-1).compareTo(parent.keys.get(0))<=0
-										&&parent2.keys.get(i).compareTo(parent.keys.get(0))>0){
-									index = i;
-									break;
-								}
-							}
-						}
-						if (index==0){
-							IndexNode<K,T> myright = (IndexNode<K, T>) parent2.children.get(1);
-							res = handleIndexNodeUnderflow(parent,myright,parent2);
-						}
-						else{
-							IndexNode<K,T> myleft = (IndexNode<K, T>) parent2.children.get(index-1);
-							res = handleIndexNodeUnderflow(myleft,parent,parent2);
-						}
-						parent = parent2;
 					}
+				}
+				if (index==0){
+					IndexNode<K,T> myright = (IndexNode<K, T>) parent2.children.get(1);
+					res = handleIndexNodeUnderflow(parent,myright,parent2);
+				}
+				else{
+					IndexNode<K,T> myleft = (IndexNode<K, T>) parent2.children.get(index-1);
+					res = handleIndexNodeUnderflow(myleft,parent,parent2);
+				}
+				parent = parent2;
+			}
 		}
 
 
@@ -279,10 +364,13 @@ public class BPlusTree<K extends Comparable<K>, T> {
 		if (res==-1) return -1;
 
 		if (left.keys.size() + right.keys.size()< 2*D){
-			left.keys.addAll(right.keys);
-			left.values.addAll(right.values);
-			parent.keys.remove(res);
-			parent.children.remove(res+1);	
+			for (int i=0;i<right.keys.size();i++){
+				left.keys.add(right.keys.get(i));
+				left.values.add(right.values.get(i));
+			}
+
+			//			parent.keys.remove(res);
+			//			parent.children.remove(res+1);	
 			return res;
 		}
 		else if (right.keys.size()>D){
@@ -292,7 +380,7 @@ public class BPlusTree<K extends Comparable<K>, T> {
 			right.values.remove(0);
 			parent.keys.remove(res);
 			parent.keys.add(res,right.keys.get(0));
-			return res;
+			return -2;
 		}else if (left.keys.size()>D){
 			right.keys.add(0,left.keys.get(left.keys.size()-1));
 			left.keys.remove(left.keys.size()-1);
@@ -300,7 +388,7 @@ public class BPlusTree<K extends Comparable<K>, T> {
 			left.values.remove(left.values.size()-1);
 			parent.keys.remove(res);
 			parent.keys.add(res,right.keys.get(0));
-			return res;
+			return -2;
 		}
 		return -1;
 
@@ -331,12 +419,12 @@ public class BPlusTree<K extends Comparable<K>, T> {
 		}
 		if (res==-1) return res;
 		if (leftIndex.keys.size() + rightIndex.keys.size()<2*D){
-           leftIndex.keys.add(parent.keys.get(res));
-           leftIndex.keys.addAll(rightIndex.keys);
-           leftIndex.children.addAll(rightIndex.children);
-           parent.keys.remove(res);
-           parent.children.remove(res+1);
-           return res;
+			leftIndex.keys.add(parent.keys.get(res));
+			leftIndex.keys.addAll(rightIndex.keys);
+			leftIndex.children.addAll(rightIndex.children);
+			parent.keys.remove(res);
+			parent.children.remove(res+1);
+			return res;
 		}
 		else if (rightIndex.keys.size()>D){
 			leftIndex.keys.add(parent.keys.get(res));
@@ -356,7 +444,7 @@ public class BPlusTree<K extends Comparable<K>, T> {
 			leftIndex.children.remove(leftIndex.children.size()-1);
 			return res;
 		}
-	   return -1;
+		return -1;
 	}
 
 }
