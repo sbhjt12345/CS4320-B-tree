@@ -1,0 +1,37 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1348\cocoasubrtf170
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural
+
+\f0\fs24 \cf0 NAME : JIANTAO HU ; LAN ZHANG\
+\
+CODING LOGIC:\
+\
+1. search: for search, build a helper function which takes root and key and parameters. If root itself is a leaf node, what we need to do is only find out the key and return its value. Else, if the specific key is smaller than the first key of the root, we recurse the helper function in the root\'92s first child; if the specific key is larger than the last key of the root, we recurse the helper function in the root\'92s last child; else, we need to find out the child of the root, whose first key is smaller than or equal to the specific key and whose last key is larger than the specific key, then recurse the helper function in that child.\
+\
+\
+2. insert: \
+the base case is when root is null, what we only need to do is creating a new leaf node with the entry in it.\
+Excluding the base case, we create a stack to trace the path containing index nodes from root, to the last index node which contains the pointer to the leaf node where the inserting entry should be located at. \
+Then we build a helper function searchForInsert, to find out the leaf node where the inserting entry should initially be located.\
+After inserting the new entry into the leaf node and sorting it, we check if that specific leaf node is overflowed. If not, the inserting work is done. If overflowed, we pop the last index node from the stack, and iterate the function of checking if index node is overflowed, handling overflowed situations, until there is no index node left.\
+\
+Another helper function, insert helper, is just used to decide at which position should the split node be located.\
+\
+3. delete:\
+Finally, for delete, the logic is a little similar.\
+If root is null we do nothing.\
+Then we build the stack whose function is the same as that in insert function \'97\'97 tracing the path. We again use searchForInsert function (though I did not change its name) to find out the leaf node where the entry to be deleted is in. Then we remove the entry.\
+Then we check if the leaf node is underflowed. If not, we are done. If underflowed, we first find out the previous leaf node and next leaf node for that specific leaf node. If root itself is leaf node, previous leaf and next leaf are both siblings of the specific leaf node; if not, they could be cousins. After dealing with this problem, we then call handleLeafNodeUnderflow function to execute either merge or redistribute based on different situations. Then we recursively check if index node is underflowed by popping the last index node from the tracing track and deal with the underflow situation until no index node is left.\
+\
+4. Acknowledge:\
+Some logic and idea is inspired from {\field{\*\fldinst{HYPERLINK "https://github.com/spoiledPiggy/CS4320/blob/master/src/BPlusTree.java"}}{\fldrslt https://github.com/spoiledPiggy/CS4320/blob/master/src/BPlusTree.java}} .\
+What I learnt from this external source: create a tracing stack when implementing delete and insert. \
+I started my own coding work after getting inspired all of a sudden when reading the starting several lines of the insert function he wrote (actually, the stack part), and did not copy any single line from his code. After several nights of working till 4 am in the morning, the B+ tree is built, and the whole work enables me to be very familiar with it now.  \
+\
+5. Other:\
+\
+I wrote another testing case called testSimple() in Tests.java to test insert function.\
+\
+}
